@@ -1,0 +1,8 @@
+{
+  "name": "task-manager-assignment",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/vi-technologies/task-manager-assignment.git",
+  "author": "Sahar Avraham <sahar@vi.co>",
+  "license": "MIT"
+}

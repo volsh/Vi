@@ -1,0 +1,15 @@
+.vscode
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+meta.json
+root_config.json
+data_sources/mongodb-atlas/config.json
+providers.json
