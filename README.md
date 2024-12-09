@@ -9,5 +9,6 @@ I am updating the data through a persistant DB (sqlite) which I migrated the jso
 I also only implemented the status filter and not for the other fields because I didn't have time, but the skelaton of this feature is there. it only needs to be implenented on specific fields and use cases
 
 in the page /tasks you can see a list of tasks that are fetch from the DB on load. they can be sorted and (partially) filtered.
+you can delete tasks from the table in bulk by selecting rows and click on the delete icon.
 on task click a form will open in a modal allowing us to update the task.
-On the left blue corner there's an add button which opens a create task form
+On the left blue corner there's an add button which opens a create task form.
