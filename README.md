@@ -1,6 +1,6 @@
 please run the project by starting the node server in the /server directory (npm run dev). it will be available at http://localhost:3000.
 and the client with the same command. it should be available at http://localhost:5173.
-you can also run the prisma studio to see the live data with the command npx prisma studio at the /server directory.
+you can also run the prisma studio to see the live data with the command npx prisma studio at the /server directory and connecting to http://localhost:5555.
 
 notice that I put a lot of emphasise on right patterns, best practices etc, resulting in some features I didn't quite make it to like the Recoil.
 
