@@ -3,18 +3,20 @@ import ListItemText from "@mui/material/ListItemText";
 import Select, { SelectChangeEvent, SelectProps } from "@mui/material/Select";
 import Checkbox from "@mui/material/Checkbox";
 import { Input } from "@mui/material";
+import { renderFilterProps } from "../../../../../../@types/common";
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
 
 export type SelectItem = { value: "number" | "string"; label: string };
 
-type MultipleSelectCheckmarksProps = {
+type MultipleSelectFilterProps = Omit<
+  renderFilterProps,
+  "value" | "onChange"
+> & {
   items: Array<SelectItem>;
-  open: boolean;
-  onChange: (selected: unknown[]) => void;
   value?: unknown[];
-  anchorEl?: Element | null;
+  onChange: (value: unknown[]) => void;
 } & SelectProps;
 
 export default function MultipleSelectFilter({
@@ -23,7 +25,7 @@ export default function MultipleSelectFilter({
   onChange,
   value = [],
   anchorEl,
-}: MultipleSelectCheckmarksProps) {
+}: MultipleSelectFilterProps) {
   const handleChange = (event: SelectChangeEvent<string[]>) => {
     const {
       target: { value },
@@ -40,9 +42,16 @@ export default function MultipleSelectFilter({
       onChange={handleChange}
       input={
         <Input
-          sx={{
-            height: 0,
-            minWidth: "200px"
+          slotProps={{
+            root: {
+              sx: {
+                minWidth: "200px",
+                height: 0,
+                "::before": {
+                  border: 0,
+                },
+              },
+            },
           }}
         />
       }
@@ -57,7 +66,6 @@ export default function MultipleSelectFilter({
               position: "absolute",
               left: "0 !important",
               top: "0 !important",
-              marginTop: "30px",
               maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
             },
           },

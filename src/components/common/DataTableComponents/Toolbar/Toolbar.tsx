@@ -8,11 +8,14 @@ import AddIcon from "@mui/icons-material/Add";
 import { styled } from "@mui/system";
 import { Alert } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 interface TableToolbarProps {
   handleAddTaskClick: () => void;
   numSelected: number;
   handleDelete: () => void;
+  clearFilters: () => void;
+  hasFilters: boolean;
   deleting: boolean;
   deleteStatus: "success" | "error" | undefined;
 }
@@ -21,6 +24,8 @@ export default function TableToolbar(props: TableToolbarProps) {
     handleAddTaskClick,
     numSelected,
     handleDelete,
+    clearFilters,
+    hasFilters,
     deleting,
     deleteStatus,
   } = props;
@@ -68,6 +73,13 @@ export default function TableToolbar(props: TableToolbarProps) {
           >
             Tasks
           </Typography>
+        )}
+        {hasFilters && (
+          <Tooltip title="Clear filters">
+            <IconButton onClick={clearFilters}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
         )}
         {numSelected > 0 && (
           <Tooltip title="Delete">

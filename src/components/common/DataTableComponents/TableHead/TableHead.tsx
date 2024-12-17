@@ -1,10 +1,10 @@
-import { Filter, SortType } from "../../../../../@types/common";
+import { Filter, renderFilterProps, SortType } from "../../../../../@types/common";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Box from "@mui/material/Box";
 import { visuallyHidden } from "@mui/utils";
 import { TableCell, TableRow } from "@mui/material";
 import Checkbox from "@mui/material/Checkbox";
-import FilterComponent, { renderFilterProps } from "../Filters/Filter/Filter";
+import FilterComponent from "../Filters/Filter/Filter";
 
 export type HeadCell = {
   id: string;
@@ -83,7 +83,7 @@ export default function DataTableHead(props: TableHeadProps) {
           {headCell.hasFilter && renderFilter && onFilterChange && (
             <FilterComponent
               field={headCell.id}
-              filterValue={filters?.[headCell.id]}
+              filterValue={filters?.[headCell.id]?.value}
               filterFunction={onFilterChange}
               renderFilter={renderFilter}
             />

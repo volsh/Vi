@@ -9,7 +9,6 @@ import Paper from "@mui/material/Paper";
 import Checkbox from "@mui/material/Checkbox";
 import { TableVirtuoso, TableComponents } from "react-virtuoso";
 import { PriorityTypes, StatusTypes, Task } from "../../../@types/task";
-import { Filter } from "../../../@types/common";
 import { deleteTasks } from "../../api/tasksApi";
 import BasicModal from "../common/BasicModal/BasicModal";
 import AddOrEditTask from "../AddOrEditTask/AddOrEditTask";
@@ -27,7 +26,10 @@ import TableToolbar from "../common/DataTableComponents/Toolbar/Toolbar";
 import DataTableHead, {
   HeadCell,
 } from "../common/DataTableComponents/TableHead/TableHead";
-import { renderFilterProps } from "../common/DataTableComponents/Filters/Filter/Filter";
+import TextFilter from "../common/DataTableComponents/Filters/TextFilter/TextFilter";
+import { Filter, renderFilterProps } from "../../../@types/common";
+import NumericFilter from "../common/DataTableComponents/Filters/NumericFilter/NumericFilter";
+import { isEmpty } from "lodash-es";
 
 type TaskHeadCell = Omit<HeadCell, "id"> & {
   id: keyof Task;
@@ -38,6 +40,7 @@ const headCells: readonly TaskHeadCell[] = [
     id: "id",
     numeric: true,
     label: "ID",
+    hasFilter: true,
   },
   {
     id: "title",
@@ -65,13 +68,39 @@ const headCells: readonly TaskHeadCell[] = [
 ];
 
 function renderTaskFilterComponent(props: renderFilterProps) {
-  switch (props.field) {
+  const { field, value, onChange } = props;
+  switch (field) {
+    case "id":
+      return (
+        <NumericFilter
+          {...props}
+          value={value as number}
+          onChange={(value) =>
+            onChange({
+              [field]: { value, filterType: "equals", fieldType: "number" },
+            })
+          }
+        />
+      );
     case "title":
+      return (
+        <TextFilter
+          {...props}
+          value={value as string}
+          onChange={(value) =>
+            onChange({ [field]: { value, filterType: "contains" } })
+          }
+          placeholder="Search for titles..."
+        />
+      );
     case "status":
       return (
         <MultipleSelectFilter
           {...props}
           value={props.value as unknown[]}
+          onChange={(value) =>
+            onChange({ [field]: { value, filterType: "array" } })
+          }
           items={
             StatusTypes.map((statusType) => ({
               value: statusType,
@@ -84,7 +113,10 @@ function renderTaskFilterComponent(props: renderFilterProps) {
       return (
         <MultipleSelectFilter
           {...props}
-          value={props.value as unknown[]}
+          value={value as unknown[]}
+          onChange={(value) =>
+            onChange({ [field]: { value, filterType: "array" } })
+          }
           items={
             PriorityTypes.map((priorityType) => ({
               value: priorityType,
@@ -98,11 +130,16 @@ function renderTaskFilterComponent(props: renderFilterProps) {
   }
 }
 
-interface TasksTableContext {
+interface DataTableContext {
+  selected: number[];
   setActiveTask: React.Dispatch<React.SetStateAction<number | undefined>>;
+  handleSelectClick: (
+    event: React.ChangeEvent<HTMLInputElement>,
+    id: number
+  ) => void;
 }
 
-const VirtuosoTableComponents: TableComponents<Task, TasksTableContext> = {
+const VirtuosoTableComponents: TableComponents<Task, DataTableContext> = {
   Scroller: React.forwardRef<HTMLDivElement>((props, ref) => (
     <TableContainer component={Paper} {...props} ref={ref} />
   )),
@@ -140,6 +177,37 @@ const VirtuosoTableComponents: TableComponents<Task, TasksTableContext> = {
   )),
 };
 
+function rowContent(_index: number, row: Task, context: DataTableContext) {
+  const isItemSelected = context?.selected.includes(row.id);
+  const labelId = `enhanced-table-checkbox-${_index}`;
+
+  return (
+    <>
+      <TableCell padding="checkbox">
+        <Checkbox
+          color="primary"
+          checked={isItemSelected}
+          inputProps={{
+            "aria-labelledby": labelId,
+          }}
+          onClick={(event: React.MouseEvent<unknown>) => {
+            event.stopPropagation(); // this prevents the edit task modal from opening when we don't want it to
+          }}
+          onChange={(event) => context.handleSelectClick(event, row.id)}
+        />
+      </TableCell>
+      {headCells.map((headCell) => (
+        <TableCell
+          key={headCell.id}
+          align={headCell.numeric ? "right" : "left"}
+        >
+          {row[headCell.id] as React.ReactNode}
+        </TableCell>
+      ))}
+    </>
+  );
+}
+
 export default function TasksList() {
   const [selected, setSelected] = React.useState<number[]>([]);
   const [activeTask, setActiveTask] = React.useState<number>();
@@ -166,7 +234,6 @@ export default function TasksList() {
         setDeleteStatus("success");
         setSelected([]);
         refreshTasks();
-        // setTasks((prev) => prev.filter((task) => !ids.includes(task.id)));
       })
       .catch((err) => {
         console.log(`failed to delete tasks ${err}`);
@@ -234,6 +301,21 @@ export default function TasksList() {
     setSelected(newSelected);
   };
 
+  const hasFilters = React.useMemo(() => {
+    return (
+      !isEmpty(requestBody.filters) &&
+      Boolean(
+        Object.values(requestBody.filters)
+          .map(({ value }) => value)
+          .find((value) => !!value)
+      ) // has at least one filter value
+    );
+  }, [requestBody.filters]);
+
+  const clearFilters = () => {
+    setRequestBody((prev) => ({ ...prev, filters: {} }));
+  };
+
   function fixedHeaderContent() {
     return (
       <DataTableHead
@@ -251,37 +333,6 @@ export default function TasksList() {
     );
   }
 
-  function rowContent(_index: number, row: Task) {
-    const isItemSelected = selected.includes(row.id);
-    const labelId = `enhanced-table-checkbox-${_index}`;
-
-    return (
-      <>
-        <TableCell padding="checkbox">
-          <Checkbox
-            color="primary"
-            checked={isItemSelected}
-            inputProps={{
-              "aria-labelledby": labelId,
-            }}
-            onClick={(event: React.MouseEvent<unknown>) => {
-              event.stopPropagation(); // this prevents the edit task modal from opening when we don't want it to
-            }}
-            onChange={(event) => handleSelectClick(event, row.id)}
-          />
-        </TableCell>
-        {headCells.map((headCell) => (
-          <TableCell
-            key={headCell.id}
-            align={headCell.numeric ? "right" : "left"}
-          >
-            {row[headCell.id] as React.ReactNode}
-          </TableCell>
-        ))}
-      </>
-    );
-  }
-
   return (
     <>
       <Paper sx={{ height: 400, width: "100%" }}>
@@ -291,13 +342,15 @@ export default function TasksList() {
           handleDelete={handleDelete}
           deleting={deleting}
           deleteStatus={deleteStatus}
+          clearFilters={clearFilters}
+          hasFilters={hasFilters}
         />
         <TableVirtuoso
           data={tasks}
           components={VirtuosoTableComponents}
           fixedHeaderContent={fixedHeaderContent}
           itemContent={rowContent}
-          context={{ setActiveTask }}
+          context={{ selected, setActiveTask, handleSelectClick }}
         />
         <Backdrop
           sx={(theme) => ({ color: "#fff", zIndex: theme.zIndex.drawer + 1 })}

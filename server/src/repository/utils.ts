@@ -1,4 +1,4 @@
-import { Filter, OrderBy } from "../../../@types/common";
+import { Filter, FilterType, OrderBy } from "../../../@types/common";
 
 export function getOrderByClause(sort?: OrderBy) {
   let orderBy: Record<string | number | symbol, unknown> = {};
@@ -10,22 +10,34 @@ export function getOrderByClause(sort?: OrderBy) {
   return orderBy;
 }
 
+export function getConditionByFilterType(
+  filterType: FilterType,
+  value: unknown
+) {
+  switch (filterType) {
+    case "array":
+      return { in: value };
+    case "contains":
+      return {
+        contains: value,
+      };
+    // @TODO continue cases
+    default:
+      return {
+        equals: value,
+      };
+  }
+}
+
 export function getWhereClause(filters?: Filter) {
   let where: Record<string | number | symbol, unknown> = {};
   if (filters) {
     for (let filter in filters) {
-      const value = filters[filter];
-      const whereFilter = filter;
-      if (Array.isArray(value)) {
-        where[whereFilter] = { in: value };
-      } else if (typeof value === "string") {
-        where[whereFilter] = {
-          contains: value,
-        };
-      } else {
-        where[whereFilter] = {
-          equals: value,
-        };
+      const { value, filterType, fieldType } = filters[filter];
+      if (value !== undefined && value !== "") {
+        const castedValue = fieldType === "number" ? Number(value) : value;
+        const whereFilter = filter;
+        where[whereFilter] = getConditionByFilterType(filterType, castedValue);
       }
     }
   }
