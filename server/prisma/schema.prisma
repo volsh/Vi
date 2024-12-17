@@ -17,7 +17,20 @@ model Task {
   dueDate String
   status    String
   creationTime  String
-  taskOwner String
+  taskOwner   User @relation(fields: [taskOwnerId], references: [id])
+  taskOwnerId Int
   priority String
-  tags String?
+  tags Tag[]
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  name      String @unique
+  tasks Task[]
+}
+
+model Tag {
+  id        Int     @id @default(autoincrement())
+  name      String @unique
+  tasks Task[]
 }

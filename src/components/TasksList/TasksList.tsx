@@ -1,48 +1,39 @@
 import * as React from "react";
-import { alpha } from "@mui/material/styles";
-import Box from "@mui/material/Box";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TableSortLabel from "@mui/material/TableSortLabel";
-import Toolbar from "@mui/material/Toolbar";
-import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
 import Checkbox from "@mui/material/Checkbox";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import DeleteIcon from "@mui/icons-material/Delete";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import { visuallyHidden } from "@mui/utils";
-import { TableVirtuoso, TableComponents, ItemProps } from "react-virtuoso";
-import {
-  FilterType,
-  ShortTask,
-  SortType,
-  StatusTypes,
-} from "../../../typings/taskTypes";
-import { deleteTasks, fetchTasks } from "../../api/tasksApi";
+import { TableVirtuoso, TableComponents } from "react-virtuoso";
+import { PriorityTypes, StatusTypes, Task } from "../../../@types/task";
+import { Filter } from "../../../@types/common";
+import { deleteTasks } from "../../api/tasksApi";
 import BasicModal from "../common/BasicModal/BasicModal";
 import AddOrEditTask from "../AddOrEditTask/AddOrEditTask";
-import { Alert, Backdrop, CircularProgress } from "@mui/material";
-import Fab from "@mui/material/Fab";
-import AddIcon from "@mui/icons-material/Add";
-import { styled } from "@mui/system";
-import MultipleSelectCheckmarks, {
+import { Backdrop, CircularProgress } from "@mui/material";
+import MultipleSelectFilter, {
   SelectItem,
-} from "../common/MultipleSelectCheckmarks/MultipleSelectCheckmarks";
+} from "../common/DataTableComponents/Filters/MultipleSelectFilter/MultipleSelectFilter";
+import {
+  useRecoilRefresher_UNSTABLE,
+  useRecoilState,
+  useRecoilValueLoadable,
+} from "recoil";
+import { tasksQuery, tasksRequest } from "../../recoil/tasks";
+import TableToolbar from "../common/DataTableComponents/Toolbar/Toolbar";
+import DataTableHead, {
+  HeadCell,
+} from "../common/DataTableComponents/TableHead/TableHead";
+import { renderFilterProps } from "../common/DataTableComponents/Filters/Filter/Filter";
 
-interface HeadCell {
-  id: keyof ShortTask;
-  label: string;
-  numeric?: boolean;
-  width?: number;
-}
+type TaskHeadCell = Omit<HeadCell, "id"> & {
+  id: keyof Task;
+};
 
-const headCells: readonly HeadCell[] = [
+const headCells: readonly TaskHeadCell[] = [
   {
     id: "id",
     numeric: true,
@@ -52,6 +43,7 @@ const headCells: readonly HeadCell[] = [
     id: "title",
     numeric: false,
     label: "Title",
+    hasFilter: true,
   },
   {
     id: "dueDate",
@@ -62,246 +54,110 @@ const headCells: readonly HeadCell[] = [
     id: "status",
     numeric: false,
     label: "Status",
+    hasFilter: true,
   },
   {
     id: "priority",
     numeric: false,
     label: "Priority",
+    hasFilter: true,
   },
 ];
 
-interface EnhancedTableProps {
-  numSelected: number;
-  onRequestSort: (
-    event: React.MouseEvent<unknown>,
-    property: keyof ShortTask
-  ) => void;
-  onSelectAllClick: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onFilterChange: (filter: FilterType) => void;
-  sortType: SortType;
-  orderBy: string;
-  rowCount: number;
-}
-
-function EnhancedTableHead(props: EnhancedTableProps) {
-  const {
-    onSelectAllClick,
-    sortType,
-    orderBy,
-    numSelected,
-    rowCount,
-    onRequestSort,
-    onFilterChange,
-  } = props;
-  const [showFilter, setShowFilter] = React.useState<boolean>(false);
-  const createSortHandler =
-    (property: keyof ShortTask) => (event: React.MouseEvent<unknown>) => {
-      onRequestSort(event, property);
-    };
-
-  return (
-    <TableRow>
-      <TableCell padding="checkbox">
-        <Checkbox
-          color="primary"
-          indeterminate={numSelected > 0 && numSelected < rowCount}
-          checked={rowCount > 0 && numSelected === rowCount}
-          onChange={onSelectAllClick}
-          inputProps={{
-            "aria-label": "select all tasks",
-          }}
-        />
-      </TableCell>
-      {headCells.map((headCell) => (
-        <TableCell
-          key={headCell.id}
-          variant="head"
-          align={headCell.numeric ? "right" : "left"}
-          sortDirection={orderBy === headCell.id ? sortType : false}
-          style={{ width: headCell.width }}
-          sx={{ backgroundColor: "background.paper" }}
-        >
-          <TableSortLabel
-            active={orderBy === headCell.id}
-            direction={orderBy === headCell.id ? sortType : "asc"}
-            onClick={createSortHandler(headCell.id)}
-          >
-            {headCell.label}
-            {orderBy === headCell.id ? (
-              <Box component="span" sx={visuallyHidden}>
-                {sortType === "desc" ? "sorted descending" : "sorted ascending"}
-              </Box>
-            ) : null}
-          </TableSortLabel>
-          <StyledFilterIcon
-            size="small"
-            onClick={() => setShowFilter((prev) => !prev)}
-          >
-            <FilterListIcon sx={{ fontSize: "1em", background: "none" }} />
-          </StyledFilterIcon>
-          {showFilter && getFilterForField(headCell.id, onFilterChange)}
-        </TableCell>
-      ))}
-    </TableRow>
-  );
-}
-function getFilterForField(
-  field: string,
-  filterFunction: (filter: FilterType) => void
-) {
-  switch (field) {
+function renderTaskFilterComponent(props: renderFilterProps) {
+  switch (props.field) {
+    case "title":
     case "status":
       return (
-        <Box sx={{ position: "absolute" }}>
-          <MultipleSelectCheckmarks
-            open={true}
-            label="Status Filter"
-            items={
-              StatusTypes.map((statusType) => ({
-                value: statusType,
-                label: statusType,
-              })) as unknown as Array<SelectItem>
-            }
-            onChange={(values) => filterFunction({ status: values })}
-          />
-        </Box>
+        <MultipleSelectFilter
+          {...props}
+          value={props.value as unknown[]}
+          items={
+            StatusTypes.map((statusType) => ({
+              value: statusType,
+              label: statusType,
+            })) as unknown as Array<SelectItem>
+          }
+        />
+      );
+    case "priority":
+      return (
+        <MultipleSelectFilter
+          {...props}
+          value={props.value as unknown[]}
+          items={
+            PriorityTypes.map((priorityType) => ({
+              value: priorityType,
+              label: priorityType,
+            })) as unknown as Array<SelectItem>
+          }
+        />
       );
     default:
-      return null;
+      return <div></div>;
   }
 }
-interface EnhancedTableToolbarProps {
-  handleAddTaskClick: () => void;
-  numSelected: number;
-  handleDelete: () => void;
-  deleting: boolean;
-  deleteStatus: "success" | "error" | undefined;
-}
-function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
-  const {
-    handleAddTaskClick,
-    numSelected,
-    handleDelete,
-    deleting,
-    deleteStatus,
-  } = props;
 
-  return (
-    <>
-      <Toolbar
-        sx={[
-          {
-            pl: { sm: 2 },
-            pr: { xs: 1, sm: 1 },
-          },
-          numSelected > 0 && {
-            bgcolor: (theme) =>
-              alpha(
-                theme.palette.primary.main,
-                theme.palette.action.activatedOpacity
-              ),
-          },
-        ]}
-      >
-        <Fab
-          color="primary"
-          size="small"
-          aria-label="add"
-          onClick={handleAddTaskClick}
-        >
-          <AddIcon />
-        </Fab>
-        {numSelected > 0 ? (
-          <Typography
-            sx={{ flex: "1 1 100%" }}
-            color="inherit"
-            variant="subtitle1"
-            component="div"
-          >
-            {numSelected} selected
-          </Typography>
-        ) : (
-          <Typography
-            sx={{ flex: "1 1 100%" }}
-            variant="h6"
-            id="tableTitle"
-            component="div"
-          >
-            Tasks
-          </Typography>
-        )}
-        {numSelected > 0 && (
-          <Tooltip title="Delete">
-            <IconButton onClick={handleDelete} disabled={deleting}>
-              <DeleteIcon />
-            </IconButton>
-          </Tooltip>
-        )}
-        {deleteStatus && (
-          <>
-            {deleteStatus === "error" ? (
-              <StyledAlert severity="error">
-                Failed to delete task. Please try again later
-              </StyledAlert>
-            ) : (
-              <StyledAlert severity="success">
-                Tasks were successfully deleted
-              </StyledAlert>
-            )}
-          </>
-        )}
-      </Toolbar>
-    </>
-  );
+interface TasksTableContext {
+  setActiveTask: React.Dispatch<React.SetStateAction<number | undefined>>;
 }
-const StyledAlert = styled(Alert)(
-  ({ theme }) => `
-     width: 95%;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);   `
-);
 
-const StyledFilterIcon = styled(IconButton)(
-  ({ theme }) => `
-    // visibility: hidden;
-    &:hover {
-        visibility: visible;
-    }
-      `
-);
+const VirtuosoTableComponents: TableComponents<Task, TasksTableContext> = {
+  Scroller: React.forwardRef<HTMLDivElement>((props, ref) => (
+    <TableContainer component={Paper} {...props} ref={ref} />
+  )),
+  Table: (props) => (
+    <Table
+      {...props}
+      aria-labelledby="tableTitle"
+      // stickyHeader
+      sx={{ borderCollapse: "separate", tableLayout: "fixed" }}
+    />
+  ),
+  TableHead: React.forwardRef<HTMLTableSectionElement>((props, ref) => (
+    <TableHead {...props} ref={ref} />
+  )),
+  TableRow: (props) => {
+    const { item: row, context } = props;
+
+    const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
+      context?.setActiveTask(row.id);
+    };
+
+    return (
+      <TableRow
+        {...props}
+        hover
+        onClick={handleRowClick}
+        tabIndex={-1}
+        key={row.id}
+        sx={{ cursor: "pointer" }}
+      />
+    );
+  },
+  TableBody: React.forwardRef<HTMLTableSectionElement>((props, ref) => (
+    <TableBody {...props} ref={ref} />
+  )),
+};
 
 export default function TasksList() {
-  const [tasks, setTasks] = React.useState<Array<ShortTask>>([]);
-  const [sortType, setSortType] = React.useState<SortType>("asc");
-  const [orderBy, setOrderBy] = React.useState<keyof ShortTask>("id");
-  const [filters, setFilters] = React.useState<FilterType>({} as FilterType);
   const [selected, setSelected] = React.useState<number[]>([]);
   const [activeTask, setActiveTask] = React.useState<number>();
   const [newTask, setNewTask] = React.useState<boolean>(false);
   const [deleting, setDeleting] = React.useState<boolean>(false);
   const [deleteStatus, setDeleteStatus] = React.useState<"success" | "error">();
 
-  const requestBody = React.useMemo(
-    () => ({
-      sort: {
-        type: sortType,
-        orderBy,
-      },
-      filters,
-    }),
-    [sortType, orderBy, filters]
-  );
+  const [requestBody, setRequestBody] = useRecoilState(tasksRequest);
 
-  const handleFetchTasks = () => {
-    fetchTasks(requestBody)
-      .then((tasks) => setTasks(tasks))
-      .catch((err) => console.log(`failed to load tasks - ${err}`));
-  };
+  const tasksLoadable = useRecoilValueLoadable(tasksQuery);
 
-  React.useEffect(() => {
-    handleFetchTasks();
-  }, [requestBody]);
+  const tasks =
+    tasksLoadable.state === "hasValue"
+      ? (tasksLoadable.contents as Task[])
+      : [];
+  const loading = tasksLoadable.state === "loading";
+
+  const refreshTasks = useRecoilRefresher_UNSTABLE(tasksQuery);
 
   const handleDelete = () => {
     setDeleting(true);
@@ -309,7 +165,8 @@ export default function TasksList() {
       .then(({ ids }) => {
         setDeleteStatus("success");
         setSelected([]);
-        setTasks((prev) => prev.filter((task) => !ids.includes(task.id)));
+        refreshTasks();
+        // setTasks((prev) => prev.filter((task) => !ids.includes(task.id)));
       })
       .catch((err) => {
         console.log(`failed to delete tasks ${err}`);
@@ -325,15 +182,25 @@ export default function TasksList() {
 
   const handleRequestSort = (
     event: React.MouseEvent<unknown>,
-    property: keyof ShortTask
+    property: string
   ) => {
-    const isAsc = orderBy === property && sortType === "asc";
-    setSortType(isAsc ? "desc" : "asc");
-    setOrderBy(property);
+    setRequestBody((prev) => ({
+      ...prev,
+      sort: {
+        field: property,
+        type:
+          prev.sort && prev.sort.field === property && prev.sort.type === "asc"
+            ? "desc"
+            : "asc",
+      },
+    }));
   };
 
-  const handleFilterUpdate = (filter: FilterType) => {
-    setFilters((prev) => ({ ...prev, ...filter }));
+  const handleFilterUpdate = (filter: Filter) => {
+    setRequestBody((prev) => ({
+      ...prev,
+      filters: { ...prev.filters, ...filter },
+    }));
   };
 
   const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,59 +234,24 @@ export default function TasksList() {
     setSelected(newSelected);
   };
 
-  const VirtuosoTableComponents: TableComponents<ShortTask> = {
-    Scroller: React.forwardRef<HTMLDivElement>((props, ref) => (
-      <TableContainer component={Paper} {...props} ref={ref} />
-    )),
-    Table: (props) => (
-      <Table
-        {...props}
-        aria-labelledby="tableTitle"
-        stickyHeader
-        sx={{ borderCollapse: "separate", tableLayout: "fixed" }}
-      />
-    ),
-    TableHead: React.forwardRef<HTMLTableSectionElement>((props, ref) => (
-      <TableHead {...props} ref={ref} />
-    )),
-    TableRow: (props) => {
-      const { item: row } = props as ItemProps<ShortTask>;
-
-      const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
-        setActiveTask(row.id);
-      };
-
-      return (
-        <TableRow
-          {...props}
-          hover
-          onClick={handleRowClick}
-          tabIndex={-1}
-          key={row.id}
-          sx={{ cursor: "pointer" }}
-        />
-      );
-    },
-    TableBody: React.forwardRef<HTMLTableSectionElement>((props, ref) => (
-      <TableBody {...props} ref={ref} />
-    )),
-  };
-
   function fixedHeaderContent() {
     return (
-      <EnhancedTableHead
+      <DataTableHead
         numSelected={selected.length}
-        sortType={sortType}
-        orderBy={orderBy}
+        sortType={requestBody?.sort?.type}
+        orderBy={requestBody?.sort?.field}
+        filters={requestBody?.filters}
         onSelectAllClick={handleSelectAllClick}
         onRequestSort={handleRequestSort}
         onFilterChange={handleFilterUpdate}
         rowCount={tasks.length}
+        headCells={headCells as HeadCell[]}
+        renderFilter={renderTaskFilterComponent}
       />
     );
   }
 
-  function rowContent(_index: number, row: ShortTask) {
+  function rowContent(_index: number, row: Task) {
     const isItemSelected = selected.includes(row.id);
     const labelId = `enhanced-table-checkbox-${_index}`;
 
@@ -443,7 +275,7 @@ export default function TasksList() {
             key={headCell.id}
             align={headCell.numeric ? "right" : "left"}
           >
-            {row[headCell.id]}
+            {row[headCell.id] as React.ReactNode}
           </TableCell>
         ))}
       </>
@@ -453,7 +285,7 @@ export default function TasksList() {
   return (
     <>
       <Paper sx={{ height: 400, width: "100%" }}>
-        <EnhancedTableToolbar
+        <TableToolbar
           handleAddTaskClick={() => setNewTask(true)}
           numSelected={selected.length}
           handleDelete={handleDelete}
@@ -465,10 +297,11 @@ export default function TasksList() {
           components={VirtuosoTableComponents}
           fixedHeaderContent={fixedHeaderContent}
           itemContent={rowContent}
+          context={{ setActiveTask }}
         />
         <Backdrop
           sx={(theme) => ({ color: "#fff", zIndex: theme.zIndex.drawer + 1 })}
-          open={deleting}
+          open={loading || deleting}
         >
           <CircularProgress color="inherit" />
         </Backdrop>

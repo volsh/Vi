@@ -5,14 +5,14 @@ import {
   getTask,
   updateTask,
   deleteTasks,
-} from "./taskRepository";
-import { TasksListRequest } from "../../typings/taskTypes";
+} from "../repository/taskRepository";
 import { body, validationResult } from "express-validator";
+import { ListFetchRequest } from "../../../@types/common";
 
 const router = express.Router();
 
 router.get("/", (req: Request, res: Response) => {
-  getTasks(req.query as TasksListRequest)
+  getTasks(req.query as ListFetchRequest)
     .then((tasks) => res.status(200).json(tasks))
     .catch((err) => res.status(400).send(err.message));
 });

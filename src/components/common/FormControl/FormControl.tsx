@@ -21,29 +21,53 @@ type FormControlProps = {
   selectOptions?: Array<
     Omit<SelectOption<string | number | readonly string[] | undefined>, "ref">
   >;
+  renderCustomInput?: (props?: {
+    [key: string]: unknown;
+  }) => React.ReactElement;
 };
 
 export default function FormControlComponent({
   required,
   name,
   label,
-  value: initialValue,
+  value: initialValue = "",
   type,
   readOnly,
   selectOptions,
+  renderCustomInput,
   ...rest
 }: FormControlProps) {
-  const [value, setValue] = React.useState(initialValue || "");
+  const [value, setValue] = React.useState<unknown>(initialValue);
   const [focused, setFocused] = React.useState<boolean>();
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(event.target.value);
+  React.useEffect(() => {
+    if (!value) {
+      setValue(initialValue);
+    }
+  }, [initialValue]);
+
+  const handleChange = (value: unknown) => {
+    setValue(value || "");
   };
   const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
     setFocused(false);
   };
   const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
     setFocused(true);
+  };
+
+  const styleOverrides = {
+    input: {
+      variants: [
+        {
+          // `dashed` is an example value, it can be any name.
+          props: { variant: "filled" },
+          style: {
+            boxShadow: "0 0 2px 2px rgb(125 200 0 / 0.25)",
+          } as CSSStyleDeclaration,
+        },
+      ],
+    },
   };
 
   return (
@@ -59,8 +83,27 @@ export default function FormControlComponent({
       {({ filled }: FormControlState) => (
         <React.Fragment>
           <Label id={`label-${name}`}>{label || name}</Label>
-          {type === "select" ? (
-            <StyledSelect name={name} className={filled ? "filled" : ""}>
+          {renderCustomInput ? (
+            <>
+              {renderCustomInput({
+                onChange: handleChange,
+                value,
+                styleOverrides,
+                textFieldProps: {
+                  // variant: filled ? "filled" : undefined,
+                  name,
+                },
+              })}
+            </>
+          ) : type === "select" ? (
+            <StyledSelect
+              name={name}
+              className={filled ? "filled" : ""}
+              value={value}
+              onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
+                handleChange(event.target.value)
+              }
+            >
               {selectOptions?.map((option) => (
                 <option key={option.id} value={option.value} id={option.id}>
                   {option.label || option.value}
@@ -74,6 +117,9 @@ export default function FormControlComponent({
               readOnly={readOnly}
               {...rest}
               className={filled ? "filled" : ""}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                handleChange(event.target.value)
+              }
             />
           )}
           {filled && focused === false && <OkMark>✔</OkMark>}{" "}
@@ -115,6 +161,9 @@ const StyledInput = styled(Input)(
         theme.palette.mode === "dark" ? blue[600] : blue[200]
       };
     }
+      &.filled {
+      box-shadow: 0 0 2px 2px rgb(125 200 0 / 0.25);
+      }
   }
 
   &.filled .${inputClasses.input} {
@@ -166,9 +215,10 @@ const StyledSelect = styled(NativeSelect)(
 );
 
 const OkMark = styled("span")`
-  margin-left: 8px;
-  margin-top: 10px;
+  margin-left: 5px;
   position: absolute;
+  top: 50%;
+  left: 100%;
   color: rgb(125 200 0 / 1);
 `;
 

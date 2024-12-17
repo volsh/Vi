@@ -1,9 +1,11 @@
 import { format, parse } from "date-fns";
-import { Task, TaskView } from "../../typings/taskTypes";
+import { Task, TaskView } from "../../@types/task";
 
 export const dateFormat = "yyyy-MM-dd";
 
-export function convertCreationTimeToTaskView(taskCreationTime: string) {
+export function convertCreationTimeToTaskView(
+  taskCreationTime: string
+): string {
   try {
     const creationTime = format(
       new Date(taskCreationTime),
@@ -11,49 +13,35 @@ export function convertCreationTimeToTaskView(taskCreationTime: string) {
     );
     return creationTime;
   } catch (err) {
-    throw err;
+    return taskCreationTime;
   }
 }
 
 export function convertTaskToTaskView(task: Task): TaskView {
-  try {
-    return {
-      ...task,
-      dueDate: format(new Date(task.dueDate), dateFormat),
-      creationTime: format(
-        new Date(task.creationTime),
-        `${dateFormat} hh:mm:ss`
-      ),
-      tags: task.tags?.split(","),
-    } as TaskView;
-  } catch (err) {
-    return { ...task, tags: task.tags?.split(",") } as TaskView;
-  }
+  return {
+    ...task,
+    dueDate: format(new Date(task.dueDate), dateFormat),
+    creationTime: convertCreationTimeToTaskView(task.creationTime),
+  } as TaskView;
 }
 
-export function convertCreationTimeToTask(viewCreationTime: string) {
+export function convertCreationTimeToTask(viewCreationTime: string): string {
   try {
     const creationTime = parse(
       viewCreationTime.replace("T", " "),
       `${dateFormat} hh:mm:ss`,
       new Date()
     );
-    return creationTime;
+    return creationTime.toISOString();
   } catch (err) {
-    throw err;
+    return viewCreationTime;
   }
 }
 
 export function convertTaskViewToTask(task: TaskView): Task {
-  try {
-    const creationTime = convertCreationTimeToTask(task.creationTime);
-    return {
-      ...task,
-      dueDate: format(new Date(task.dueDate), dateFormat),
-      creationTime: creationTime.toISOString(),
-      tags: task.tags?.join(","),
-    } as Task;
-  } catch (err) {
-    return { ...task, tags: task.tags?.join(",") } as Task;
-  }
+  return {
+    ...task,
+    dueDate: format(new Date(task.dueDate), dateFormat),
+    creationTime: convertCreationTimeToTask(task.creationTime),
+  } as Task;
 }

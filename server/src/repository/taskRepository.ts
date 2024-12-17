@@ -1,32 +1,28 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import {
-  NewTask,
-  SortType,
-  Task,
-  TasksListRequest,
-} from "../../typings/taskTypes";
+import { NewTask, Task } from "../../../@types/task";
+import { ListFetchRequest } from "../../../@types/common";
+import { getOrderByClause, getWhereClause } from "./utils";
 
 const prisma = new PrismaClient();
 
-export const getTasks = async (request: TasksListRequest) => {
-  const { sort, filters } = request;
-  let orderBy: Prisma.TaskOrderByWithRelationInput = {};
-  let where: { [filter: string]: unknown } = {};
+export const getTasks = async (request: ListFetchRequest) => {
+  const { size, offset, cursorValue, sort, filters } = request;
+  const orderBy = getOrderByClause(sort) as Prisma.TaskOrderByWithRelationInput;
+  const where = getWhereClause(filters) as Prisma.TaskWhereInput;
 
-  if (sort) {
-    const field = sort.orderBy;
-    orderBy[field] = sort.type;
-  }
-  if (filters) {
-    for (let filter in filters) {
-      const values = filters[filter];
-      if (Array.isArray(values)) {
-        where[filter] = { in: values };
-      }
-    }
+  let cursor, skip;
+  if (cursorValue && sort?.field === "id") {
+    cursor = {
+      [sort.field]: cursor,
+    };
+  } else if (offset) {
+    skip = offset;
   }
   try {
     const tasks = await prisma.task.findMany({
+      take: size || undefined,
+      cursor,
+      skip,
       orderBy,
       where,
       select: {
@@ -46,6 +42,20 @@ export const getTasks = async (request: TasksListRequest) => {
 export const getTask = async (id: number) => {
   try {
     const task = await prisma.task.findFirst({
+      include: {
+        taskOwner: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        tags: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
       where: {
         id: {
           equals: id,
@@ -65,9 +75,9 @@ export const createTask = async (task: NewTask) => {
     dueDate,
     status,
     creationTime,
-    taskOwner,
+    taskOwnerId,
     priority,
-    tags,
+    tagIds,
   } = task;
 
   try {
@@ -78,9 +88,11 @@ export const createTask = async (task: NewTask) => {
         dueDate,
         status,
         creationTime,
-        taskOwner,
+        taskOwnerId,
         priority,
-        tags,
+        tags: tagIds?.length
+          ? { connect: tagIds.map((tagId) => ({ id: tagId })) }
+          : undefined,
       },
     });
     return newTask;
@@ -97,9 +109,9 @@ export const updateTask = async (task: Task) => {
     dueDate,
     status,
     creationTime,
-    taskOwner,
+    taskOwnerId,
     priority,
-    tags,
+    tagIds,
   } = task;
 
   try {
@@ -110,12 +122,14 @@ export const updateTask = async (task: Task) => {
         dueDate,
         status,
         creationTime,
-        taskOwner,
+        taskOwnerId,
         priority,
-        tags,
+        tags: tagIds?.length
+          ? { set: [], connect: tagIds.map((tagId) => ({ id: tagId })) }
+          : undefined,
       },
       where: {
-        id: parseInt(id as unknown as string), // a fallback for conversion errors
+        id,
       },
     });
     return newTask;

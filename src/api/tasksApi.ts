@@ -1,11 +1,11 @@
-import axios from "axios";
-import { TasksListRequest, TaskView } from "../../typings/taskTypes";
-import {
-  convertTaskToTaskView,
-  convertTaskViewToTask,
-} from "../utils/taskUtils";
+import axios, { AxiosError } from "axios";
+import { Task } from "../../@types/task";
+import { convertTaskToTaskView } from "../utils/taskUtils";
+import { ListFetchRequest } from "../../@types/common";
 
-export async function fetchTasks(params: TasksListRequest) {
+export async function fetchTasks(
+  params?: ListFetchRequest
+): Promise<Task[] | AxiosError> {
   try {
     const response = await axios.get("api/tasks", { params });
     return response.data;
@@ -14,30 +14,29 @@ export async function fetchTasks(params: TasksListRequest) {
   }
 }
 
-export async function fetchTask(id: number) {
+export async function fetchTask(id: number, abortController?: AbortController) {
   try {
-    const response = await axios.get(`api/tasks/${id}`);
+    const response = await axios.get(`api/tasks/${id}`, {
+      signal: abortController?.signal,
+    });
     return convertTaskToTaskView(response.data);
   } catch (err) {
     throw err;
   }
 }
 
-export async function createTask(task: TaskView) {
+export async function createTask(task: Task) {
   try {
-    const response = await axios.post("api/tasks", convertTaskViewToTask(task));
+    const response = await axios.post("api/tasks", task);
     return response.data;
   } catch (err) {
     throw err;
   }
 }
 
-export async function updateTask(task: TaskView) {
+export async function updateTask(task: Task) {
   try {
-    const response = await axios.put(
-      `api/tasks/${task.id}`,
-      convertTaskViewToTask(task)
-    );
+    const response = await axios.put(`api/tasks/${task.id}`, task);
     return response.data;
   } catch (err) {
     throw err;

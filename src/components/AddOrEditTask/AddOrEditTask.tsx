@@ -1,37 +1,54 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createTask, fetchTask, updateTask } from "../../api/tasksApi";
 import {
   PriorityTypes,
   StatusTypes,
+  Task,
   TaskView,
-} from "../../../typings/taskTypes";
+} from "../../../@types/task";
 import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import FormControl from "../common/FormControl/FormControl";
 import LoadingButton from "@mui/lab/LoadingButton";
 import SaveIcon from "@mui/icons-material/Save";
 import { styled } from "@mui/system";
-import ChipsArray, { ChipData } from "../common/Chips/Chips";
 import { convertCreationTimeToTaskView } from "../../utils/taskUtils";
+import UserSelect from "../UserSelect/UserSelect";
+import Tags from "../Tags/Tags";
+import { tasksQuery } from "../../recoil/tasks";
+import { useRecoilRefresher_UNSTABLE } from "recoil";
 
 type EditTaskProps = { id?: number };
 
 export default function AddOrEditTask({ id }: EditTaskProps) {
-  const [task, setTask] = useState<TaskView>();
+  const [task, setTask] = useState<TaskView>({} as TaskView);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [savingStatus, setSavingStatus] = useState<"success" | "error">();
+
+  const refreshTasks = useRecoilRefresher_UNSTABLE(tasksQuery);
 
   const handleSave = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (event.currentTarget.checkValidity()) {
       const formData = new FormData(event.currentTarget);
-      const obj = { ...Object.fromEntries(formData), tags: task?.tags };
+      const formEntries = Object.fromEntries(formData) as unknown as Task;
+      const obj: Task = {
+        ...formEntries,
+        id: parseInt(formEntries.id as unknown as string),
+        taskOwnerId: parseInt(formEntries.taskOwnerId as unknown as string),
+        tagIds: formEntries.tagIds
+          ? (formEntries.tagIds as unknown as string)
+              .split(",")
+              .map((tagId) => parseInt(tagId))
+          : [],
+      };
       setSaving(true);
       const action = !!id ? updateTask : createTask;
 
-      action(obj as unknown as TaskView)
+      action(obj)
         .then(() => {
           setSavingStatus("success");
+          refreshTasks();
         })
         .catch((err) => {
           console.log(`failed to save task ${err}`);
@@ -46,56 +63,30 @@ export default function AddOrEditTask({ id }: EditTaskProps) {
     }
   };
 
-  const chipTags = useMemo(
-    () => task?.tags?.map((tag) => ({ label: tag })),
-    [task]
-  );
-
-  const handleAddTag = useCallback(
-    (chip: ChipData) => {
-      setTask((prev) => {
-        if (prev) {
-          return {
-            ...prev,
-            tags: [...prev.tags, chip.label],
-          };
-        }
-        return { tags: [chip.label] };
-      });
-    },
-    [setTask]
-  );
-
-  const handleDeleteTag = useCallback(
-    (chip: ChipData) => {
-      setTask((prev) => {
-        if (prev) {
-          return {
-            ...prev,
-            tags: prev.tags.filter((tag) => tag !== chip.label),
-          };
-        }
-        return prev;
-      });
-    },
-    [setTask]
-  );
-
   useEffect(() => {
+    const abortController = new AbortController();
+
     if (id) {
       setLoading(true);
-      fetchTask(id)
+      fetchTask(id, abortController) // we pass abortController due to the react double useEffect invoke on dev mode behaviour
         .then((task) => {
           setTask(task);
         })
         .catch((err) => {
-          console.log(`failed to fetch task ${id} - ${err}`);
+          if (err.name !== "CanceledError") {
+            console.log(`failed to fetch task ${id} - ${err}`);
+          }
         })
         .finally(() => {
           setLoading(false);
         });
     }
+    return () => abortController.abort();
   }, [id]);
+
+  const initialUserOptions = useMemo(() => {
+    return task?.taskOwner ? [task.taskOwner] : [];
+  }, [task?.taskOwner]);
 
   return (
     <Box sx={{ width: "100%", display: "flex", flexDirection: "column" }}>
@@ -125,28 +116,28 @@ export default function AddOrEditTask({ id }: EditTaskProps) {
             {!!id ? "Update Task" : "Create Task"}
           </Typography>
           <StyledForm onSubmit={handleSave} noValidate>
-            {task && <input name="id" type="hidden" value={task?.id} />}
+            {task.id && <input name="id" type="hidden" value={task.id} />}
             <FormControl
               name="title"
-              value={task?.title}
+              value={task.title}
               label="Title"
               required
             />
             <FormControl
               name="description"
-              value={task?.description}
+              value={task.description}
               label="Description"
             />
             <FormControl
               name="dueDate"
-              value={task?.dueDate}
+              value={task.dueDate}
               label="Due date"
               type="date"
               required
             />
             <FormControl
               name="status"
-              value={task?.status}
+              value={task.status}
               label="Status"
               type="select"
               required
@@ -169,14 +160,17 @@ export default function AddOrEditTask({ id }: EditTaskProps) {
               readOnly
             />
             <FormControl
-              name="taskOwner"
-              value={task?.taskOwner}
+              name="taskOwnerId"
+              value={task.taskOwner}
               label="Task Owner"
               required
+              renderCustomInput={(props) => (
+                <UserSelect options={initialUserOptions} {...props} />
+              )}
             />
             <FormControl
               name="priority"
-              value={task?.priority}
+              value={task.priority}
               label="Priority"
               type="select"
               required
@@ -186,10 +180,11 @@ export default function AddOrEditTask({ id }: EditTaskProps) {
                 label: priorityType,
               }))}
             />
-            <ChipsArray
-              chips={chipTags as ChipData[]}
-              onDeleteChip={handleDeleteTag}
-              onAddChip={handleAddTag}
+            <FormControl
+              name="tagIds"
+              value={task.tags || []}
+              label="Tags"
+              renderCustomInput={(props) => <Tags {...props} />}
             />
             <LoadingButton
               loading={saving}

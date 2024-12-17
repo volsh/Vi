@@ -21,7 +21,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "typeRoots": ["typings"]
   },
-  "include": ["src", "typings"]
+  "include": ["src", "@types"]
 }

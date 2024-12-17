@@ -1,7 +1,9 @@
 import express, { Express, NextFunction, Request, Response } from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
-import tasks from "./taskController";
+import tasks from "./controller/taskController";
+import users from "./controller/userController";
+import tags from "./controller/tagController";
 
 dotenv.config();
 
@@ -23,5 +25,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use("/tasks", tasks);
+app.use("/users", users);
+app.use("/tags", tags);
 
 app.listen(port, () => console.log("Server ready"));
